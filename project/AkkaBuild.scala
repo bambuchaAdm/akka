@@ -1036,7 +1036,13 @@ object AkkaBuild extends Build {
       FilterAnyProblem("akka.persistence.UntypedEventsourcedProcessor"),
       FilterAnyProblem("akka.persistence.AbstractEventsourcedProcessor"),
       ProblemFilters.exclude[MissingClassProblem]("akka.persistence.JournalProtocol$WriteMessagesFailure"), // renamed internall messages
-      ProblemFilters.exclude[MissingClassProblem]("akka.persistence.JournalProtocol$WriteMessagesFailure$") // renamed internall messages
+      ProblemFilters.exclude[MissingClassProblem]("akka.persistence.JournalProtocol$WriteMessagesFailure$"), // renamed internall messages
+      
+      // Adding wildcardFanOut to internal message ActorSelectionMessage by #13992
+      FilterAnyProblem("akka.actor.ActorSelectionMessage$"),
+      FilterAnyProblem("akka.actor.ActorSelectionMessage"),
+      ProblemFilters.exclude[MissingMethodProblem]("akka.remote.ContainerFormats#SelectionEnvelopeOrBuilder.hasWildcardFanOut"),
+      ProblemFilters.exclude[MissingMethodProblem]("akka.remote.ContainerFormats#SelectionEnvelopeOrBuilder.getWildcardFanOut")
     )
   }
 

@@ -157,6 +157,8 @@ private[persistence] trait Eventsourced extends Processor {
       receiveRecover(s)
     case f: RecoveryFailure if receiveRecover.isDefinedAt(f) ⇒
       receiveRecover(f)
+    case RecoveryCompleted if receiveRecover.isDefinedAt(RecoveryCompleted) ⇒
+      receiveRecover(RecoveryCompleted)
   }
 
   sealed trait PersistInvocation {

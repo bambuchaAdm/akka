@@ -69,6 +69,7 @@ trait Processor extends Actor with Recovery {
         _currentState = processing
         sequenceNr = highest
         receiverStash.unstashAll()
+        onRecoveryCompleted(receive)
       case ReadHighestSequenceNrFailure(cause) ⇒
         onRecoveryFailure(receive, cause)
       case other ⇒
@@ -89,15 +90,7 @@ trait Processor extends Actor with Recovery {
       case ReplayedMessage(p)     ⇒ processPersistent(receive, p) // can occur after unstash from user stash
       case WriteMessageSuccess(p) ⇒ processPersistent(receive, p)
       case WriteMessageFailure(p, cause) ⇒
-        val notification = PersistenceFailure(p.payload, p.sequenceNr, cause)
-        if (receive.isDefinedAt(notification)) process(receive, notification)
-        else {
-          val errorMsg = "Processor killed after persistence failure " +
-            s"(processor id = [${processorId}], sequence nr = [${p.sequenceNr}], payload class = [${p.payload.getClass.getName}]). " +
-            "To avoid killing processors on persistence failure, a processor must handle PersistenceFailure messages. " +
-            "PersistenceFailure was caused by: " + cause
-          throw new ActorKilledException(errorMsg)
-        }
+        process(receive, PersistenceFailure(p.payload, p.sequenceNr, cause))
       case LoopMessageSuccess(m) ⇒ process(receive, m)
       case WriteMessagesSuccessful | WriteMessagesFailed(_) ⇒
         if (processorBatch.isEmpty) batching = false else journalBatch()
@@ -148,18 +141,16 @@ trait Processor extends Actor with Recovery {
     onRecoveryFailure(receive, cause)
 
   /**
-   * Invokes this processor's behavior with a `RecoveryFailure` message, if handled, otherwise throws a
-   * `RecoveryFailureException`.
+   * Invokes this processor's behavior with a `RecoveryFailure` message.
    */
-  private def onRecoveryFailure(receive: Receive, cause: Throwable): Unit = {
-    val notification = RecoveryFailure(cause)
-    if (receive.isDefinedAt(notification)) {
-      receive(notification)
-    } else {
-      val errorMsg = s"Recovery failure by journal (processor id = [${processorId}])"
-      throw new RecoveryException(errorMsg, cause)
-    }
-  }
+  private def onRecoveryFailure(receive: Receive, cause: Throwable): Unit =
+    receive.applyOrElse(RecoveryFailure(cause), unhandled)
+
+  /**
+   * Invokes this processor's behavior with a `RecoveryFinished` message.
+   */
+  private def onRecoveryCompleted(receive: Receive): Unit =
+    receive.applyOrElse(RecoveryCompleted, unhandled)
 
   private val _processorId = extension.processorId(self)
 
@@ -296,6 +287,22 @@ trait Processor extends Actor with Recovery {
     try preRestart(reason, message) finally super.preRestart(reason, message)
   }
 
+  override def unhandled(message: Any): Unit = {
+    message match {
+      case RecoveryCompleted ⇒ // mute
+      case RecoveryFailure(cause) ⇒
+        val errorMsg = s"Recovery failure by journal (processor id = [${processorId}])"
+        throw new RecoveryException(errorMsg, cause)
+      case PersistenceFailure(payload, sequnceNumber, cause) ⇒
+        val errorMsg = "Processor killed after persistence failure " +
+          s"(processor id = [${processorId}], sequence nr = [${sequenceNr}], payload class = [${payload.getClass.getName}]). " +
+          "To avoid killing processors on persistence failure, a processor must handle PersistenceFailure messages. " +
+          "PersistenceFailure was caused by: " + cause
+        throw new ActorKilledException(errorMsg)
+      case m ⇒ super.unhandled(m)
+    }
+  }
+
   private def nextSequenceNr(): Long = {
     sequenceNr += 1L
     sequenceNr
@@ -334,6 +341,18 @@ case class RecoveryFailure(cause: Throwable)
  */
 @SerialVersionUID(1L)
 case class RecoveryException(message: String, cause: Throwable) extends AkkaException(message, cause)
+
+abstract class RecoveryCompleted
+/**
+ * Sent to a [[Processor]] when the journal replay has been finished.
+ */
+@SerialVersionUID(1L)
+case object RecoveryCompleted extends RecoveryCompleted {
+  /**
+   * Java API: get the singleton instance
+   */
+  def getInstance = this
+}
 
 /**
  * Java API: an actor that persists (journals) messages of type [[Persistent]]. Messages of other types

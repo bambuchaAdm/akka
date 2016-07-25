@@ -71,7 +71,7 @@ public class CountMinSketch {
       // parameter to constructor.
       throw new IllegalArgumentException("Negative increments not implemented");
     }
-    Murmur3Hash.hashBuckets(item, recyclableCMSHashBuckets, width);
+    MurmurHash.hashBuckets(item, recyclableCMSHashBuckets, width);
     for (int i = 0; i < depth; ++i) {
       table[i][recyclableCMSHashBuckets[i]] += count;
     }

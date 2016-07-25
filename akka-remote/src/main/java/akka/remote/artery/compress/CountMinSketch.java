@@ -32,6 +32,7 @@ public class CountMinSketch {
   private double confidence;
 
   private int[] recyclableCMSHashBuckets;
+
   
   
   public CountMinSketch(int depth, int width, int seed) {
@@ -102,20 +103,6 @@ public class CountMinSketch {
     return ((int) hash) % width;
   }
 
-  public void add(long item, long count) {
-    if (count < 0) {
-      // Actually for negative increments we'll need to use the median
-      // instead of minimum, and accuracy will suffer somewhat.
-      // Probably makes sense to add an "allow negative increments"
-      // parameter to constructor.
-      throw new IllegalArgumentException("Negative increments not implemented");
-    }
-    for (int i = 0; i < depth; ++i) {
-      table[i][hash(item, i)] += count;
-    }
-    size += count;
-  }
-
   public void addObject(Object item, long count) {
     if (count < 0) {
       // Actually for negative increments we'll need to use the median
@@ -179,6 +166,11 @@ public class CountMinSketch {
       res = Math.min(res, table[i][buckets[i]]);
     }
     return res;
+  }
+
+
+  private static class Murmur3Hash {
+
   }
   
   /**

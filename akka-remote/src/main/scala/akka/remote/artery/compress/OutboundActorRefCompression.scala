@@ -17,6 +17,20 @@ import scala.annotation.tailrec
 private[remote] final class OutboundActorRefCompression(system: ActorSystem, remoteAddress: Address)
   extends OutboundCompressionTable[ActorRef](system, remoteAddress) {
 
+  def compressMultiple(refs: Array[ActorRef], versionAndIndexes: Array[Int]): Unit = {
+    val state = get()
+    versionAndIndexes(0) = state.version
+    val iterator = refs.iterator
+    Range.apply(1, versionAndIndexes.length).foreach { index ⇒
+      if (iterator.hasNext) {
+        val ref = iterator.next()
+        versionAndIndexes(index) = state.table.getOrDefault(ref, -1)
+      } else {
+        return
+      }
+    }
+  }
+
   flipTable(CompressionTable(
     version = 0,
     map = Map(

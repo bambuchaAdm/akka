@@ -36,6 +36,12 @@ case object NoOutboundCompressions extends OutboundCompressions {
   override def actorRefCompressionTableVersion: Int = 0
   override def compressActorRef(ref: ActorRef): Int = -1
 
+  override def compressBoth(headerBuilder: HeaderBuilderImpl, sender: ActorRef, recipient: ActorRef): Unit = ()
+
+  override def compressSender(headerBuilder: HeaderBuilderImpl, sender: ActorRef): Unit = ()
+
+  override def compressRecipient(headerBuilder: HeaderBuilderImpl, recipient: ActorRef): Unit = ()
+
   override def applyClassManifestCompressionTable(table: CompressionTable[String]): Unit = ()
   override def classManifestCompressionTableVersion: Int = 0
   override def compressClassManifest(manifest: String): Int = -1

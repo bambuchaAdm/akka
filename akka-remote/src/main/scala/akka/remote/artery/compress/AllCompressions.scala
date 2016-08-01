@@ -5,6 +5,7 @@
 package akka.remote.artery.compress
 
 import akka.actor.{ ActorRef, Address }
+import akka.remote.artery.HeaderBuilderImpl
 import akka.util.OptionVal
 
 /**
@@ -31,7 +32,13 @@ private[remote] trait InboundCompressions {
 private[remote] trait OutboundCompressions {
   def applyActorRefCompressionTable(table: CompressionTable[ActorRef]): Unit
   def actorRefCompressionTableVersion: Int
+
+  @deprecated("Too general and clean, cause reaces...")
   def compressActorRef(ref: ActorRef): Int
+
+  def compressBoth(headerBuilder: HeaderBuilderImpl, sender: ActorRef, recipient: ActorRef): Unit
+  def compressSender(headerBuilder: HeaderBuilderImpl, sender: ActorRef): Unit
+  def compressRecipient(headerBuilder: HeaderBuilderImpl, recipient: ActorRef): Unit
 
   def applyClassManifestCompressionTable(table: CompressionTable[String]): Unit
   def classManifestCompressionTableVersion: Int

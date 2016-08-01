@@ -103,8 +103,7 @@ class CodecBenchmark {
     headerIn setVersion 1
     headerIn setUid 42
     headerIn setSerializer 4
-    headerIn setSenderActorRef actorOnSystemA
-    headerIn setRecipientActorRef remoteRefB
+    headerIn setSenderAndRecipientActorRef (actorOnSystemA, remoteRefB)
     headerIn setManifest ""
     envelope.writeHeader(headerIn)
     envelope.byteBuffer.put(payload)

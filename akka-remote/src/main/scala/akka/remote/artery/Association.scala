@@ -439,6 +439,18 @@ private[remote] class Association(
       associationState.outboundCompressions.compressActorRef(ref)
     }
 
+    override def compressBoth(headerBuilder: HeaderBuilderImpl, sender: ActorRef, recipient: ActorRef): Unit = {
+      associationState.outboundCompressions.compressBoth(headerBuilder, sender, recipient)
+    }
+
+    override def compressSender(headerBuilder: HeaderBuilderImpl, sender: ActorRef): Unit = {
+      associationState.outboundCompressions.compressSender(headerBuilder, sender)
+    }
+
+    override def compressRecipient(headerBuilder: HeaderBuilderImpl, recipient: ActorRef): Unit = {
+      associationState.outboundCompressions.compressRecipient(headerBuilder, recipient)
+    }
+
     override def classManifestCompressionTableVersion: Int =
       associationState.outboundCompressions.classManifestCompressionTableVersion
     override def applyClassManifestCompressionTable(table: CompressionTable[String]): Unit =

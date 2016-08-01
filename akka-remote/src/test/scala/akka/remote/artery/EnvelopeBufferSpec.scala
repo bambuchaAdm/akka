@@ -34,6 +34,17 @@ class EnvelopeBufferSpec extends AkkaSpec {
     override def applyActorRefCompressionTable(table: CompressionTable[ActorRef]): Unit = ??? // dynamic allocating not needed in these tests
     override def actorRefCompressionTableVersion: Int = 0
     override def compressActorRef(ref: ActorRef): Int = refToIdx.getOrElse(ref, -1)
+    override def compressBoth(headerBuilder: HeaderBuilderImpl, sender: ActorRef, recipient: ActorRef): Unit = {
+      headerBuilder.setSenderActorRefId(refToIdx.getOrElse(sender, -1), sender)
+      headerBuilder.setRecipientActorRefId(refToIdx.getOrElse(recipient, -1), recipient)
+    }
+    override def compressSender(headerBuilder: HeaderBuilderImpl, sender: ActorRef): Unit = {
+      headerBuilder.setSenderActorRefId(refToIdx.getOrElse(sender, -1), sender)
+    }
+    override def compressRecipient(headerBuilder: HeaderBuilderImpl, recipient: ActorRef): Unit = {
+      headerBuilder.setRecipientActorRefId(refToIdx.getOrElse(recipient, -1), recipient)
+    }
+
     override def hitActorRef(originUid: Long, tableVersion: Int, remote: Address, ref: ActorRef, n: Int): Unit = ()
     override def decompressActorRef(originUid: Long, tableVersion: Int, idx: Int): OptionVal[ActorRef] = OptionVal(idxToRef(idx))
     override def confirmActorRefCompressionAdvertisement(originUid: Long, tableVersion: Int): Unit = ()
@@ -61,9 +72,7 @@ class EnvelopeBufferSpec extends AkkaSpec {
       headerIn setSerializer 4
       headerIn setActorRefCompressionTableVersion 0xCAFE
       headerIn setClassManifestCompressionTableVersion 0xBABE
-      headerIn setRecipientActorRef minimalRef("compressable1")
-      headerIn setSenderActorRef minimalRef("compressable0")
-
+      headerIn setSenderAndRecipientActorRef (OptionVal(minimalRef("compressable0")), OptionVal(minimalRef("compressable1")))
       headerIn setManifest "manifest1"
 
       envelope.writeHeader(headerIn)
@@ -88,8 +97,7 @@ class EnvelopeBufferSpec extends AkkaSpec {
       headerIn setVersion 1
       headerIn setUid 42
       headerIn setSerializer 4
-      headerIn setSenderActorRef minimalRef("uncompressable0")
-      headerIn setRecipientActorRef minimalRef("uncompressable11")
+      headerIn setSenderAndRecipientActorRef (OptionVal(minimalRef("uncompressable0")), OptionVal(minimalRef("uncompressable11")))
       headerIn setManifest "uncompressable3333"
 
       val expectedHeaderLength =
@@ -118,8 +126,7 @@ class EnvelopeBufferSpec extends AkkaSpec {
       headerIn setVersion 1
       headerIn setUid 42
       headerIn setSerializer 4
-      headerIn setSenderActorRef minimalRef("reallylongcompressablestring")
-      headerIn setRecipientActorRef minimalRef("uncompressable1")
+      headerIn setSenderAndRecipientActorRef (OptionVal(minimalRef("reallylongcompressablestring")), OptionVal(minimalRef("uncompressable1")))
       headerIn setManifest "manifest1"
 
       envelope.writeHeader(headerIn)
@@ -142,8 +149,7 @@ class EnvelopeBufferSpec extends AkkaSpec {
       headerIn setVersion 3
       headerIn setUid Long.MinValue
       headerIn setSerializer -1
-      headerIn setSenderActorRef minimalRef("uncompressable0")
-      headerIn setRecipientActorRef minimalRef("reallylongcompressablestring")
+      headerIn setSenderAndRecipientActorRef (OptionVal(minimalRef("uncompressable0")), OptionVal(minimalRef("reallylongcompressablestring")))
       headerIn setManifest "longlonglongliteralmanifest"
 
       envelope.writeHeader(headerIn)
@@ -171,8 +177,7 @@ class EnvelopeBufferSpec extends AkkaSpec {
       headerIn setVersion 1
       headerIn setUid 42
       headerIn setSerializer 4
-      headerIn setSenderActorRef minimalRef("reallylongcompressablestring")
-      headerIn setRecipientActorRef minimalRef("uncompressable1")
+      headerIn setSenderAndRecipientActorRef (OptionVal(minimalRef("reallylongcompressablestring")), OptionVal(minimalRef("uncompressable1")))
       headerIn setManifest "manifest1"
 
       envelope.writeHeader(headerIn)

@@ -8,6 +8,7 @@ import java.util.function.LongFunction
 
 import akka.actor.{ ActorRef, ActorSystem, Address }
 import akka.remote.artery._
+import akka.serialization.Serialization
 import akka.util.OptionVal
 import org.agrona.collections.Long2ObjectHashMap
 
@@ -19,7 +20,36 @@ private[remote] final class OutboundCompressionsImpl(system: ActorSystem, remote
 
   // actor ref compression ---
 
+  // could be private
   override def compressActorRef(ref: ActorRef): Int = actorRefsOut.compress(ref)
+
+  // Depends on implementation of compressMultiple
+  private val actorRefBuffer = Array.ofDim[ActorRef](2)
+  private val versionAndIndexes = Array.ofDim[Int](3)
+
+  override def compressBoth(headerBuilder: HeaderBuilderImpl, sender: ActorRef, recipient: ActorRef): Unit = {
+    actorRefBuffer(0) = sender
+    actorRefBuffer(1) = recipient
+    actorRefsOut.compressMultiple(actorRefBuffer, versionAndIndexes)
+    headerBuilder._actorRefCompressionTableVersion = versionAndIndexes(0)
+    headerBuilder.setSenderActorRefId(versionAndIndexes(1), sender)
+    headerBuilder.setRecipientActorRefId(versionAndIndexes(2), recipient)
+  }
+
+  override def compressSender(headerBuilder: HeaderBuilderImpl, sender: ActorRef): Unit = {
+    actorRefBuffer(0) = sender
+    actorRefsOut.compressMultiple(actorRefBuffer, versionAndIndexes)
+    headerBuilder._actorRefCompressionTableVersion = versionAndIndexes(0)
+    headerBuilder.setSenderActorRefId(versionAndIndexes(1), sender)
+  }
+
+  override def compressRecipient(headerBuilder: HeaderBuilderImpl, recipient: ActorRef): Unit = {
+    actorRefBuffer(0) = recipient
+    actorRefsOut.compressMultiple(actorRefBuffer, versionAndIndexes)
+    headerBuilder._actorRefCompressionTableVersion = versionAndIndexes(0)
+    headerBuilder.setRecipientActorRefId(versionAndIndexes(1), recipient)
+  }
+
   override def actorRefCompressionTableVersion: Int = actorRefsOut.activeCompressionTableVersion
   override def applyActorRefCompressionTable(table: CompressionTable[ActorRef]): Unit =
     actorRefsOut.flipTable(table)

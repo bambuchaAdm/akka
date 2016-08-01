@@ -51,14 +51,20 @@ private[remote] object EnvelopeBuffer {
   val TagTypeMask = 0xFF000000
   val TagValueMask = 0x0000FFFF
 
-  val VersionOffset = 0 // Int
-  val UidOffset = 4 // Long
+  val VersionOffset = 0
+  // Int
+  val UidOffset = 4
+  // Long
   val SerializerOffset = 12 // Int
 
-  val SenderActorRefTagOffset = 16 // Int
-  val RecipientActorRefTagOffset = 20 // Int
-  val ClassManifestTagOffset = 24 // Int
-  val ActorRefCompressionTableVersionTagOffset = 28 // Int
+  val SenderActorRefTagOffset = 16
+  // Int
+  val RecipientActorRefTagOffset = 20
+  // Int
+  val ClassManifestTagOffset = 24
+  // Int
+  val ActorRefCompressionTableVersionTagOffset = 28
+  // Int
   val ClassManifestCompressionTableVersionTagOffset = 32 // Int
 
   val LiteralsSectionOffset = 36
@@ -78,6 +84,7 @@ private[remote] object HeaderBuilder {
   // we inject no-op compression's of the "other side".
 
   def in(compression: InboundCompressions): HeaderBuilder = new HeaderBuilderImpl(compression, NoOutboundCompressions)
+
   def out(compression: OutboundCompressions): HeaderBuilder = new HeaderBuilderImpl(NoInboundCompressions, compression)
 
   /** INTERNAL API, FOR TESTING ONLY */
@@ -89,23 +96,29 @@ private[remote] object HeaderBuilder {
  */
 sealed trait HeaderBuilder {
   def setVersion(v: Int): Unit
+
   def version: Int
 
   def setActorRefCompressionTableVersion(v: Int): Unit
+
   def actorRefCompressionTableVersion: Int
 
   def setClassManifestCompressionTableVersion(v: Int): Unit
+
   def classManifestCompressionTableVersion: Int
 
   def setUid(u: Long): Unit
+
   def uid: Long
 
-  def setSenderActorRef(ref: ActorRef): Unit
+  def setSenderActorRefId(id: Int, ref: ActorRef): Unit
+
   /**
    * Retrive the compressed ActorRef by the compressionId carried by this header.
    * Returns `None` if ActorRef was not compressed, and then the literal [[senderActorRefPath]] should be used.
    */
   def senderActorRef(originUid: Long): OptionVal[ActorRef]
+
   /**
    * Retrive the raw literal actor path, instead of using the compressed value.
    * Returns `None` if ActorRef was compressed (!). To obtain the path in such case call [[senderActorRef]] and extract the path from it directly.
@@ -113,17 +126,23 @@ sealed trait HeaderBuilder {
   def senderActorRefPath: OptionVal[String]
 
   def setNoSender(): Unit
+
   def isNoSender: Boolean
 
   def setNoRecipient(): Unit
+
   def isNoRecipient: Boolean
 
-  def setRecipientActorRef(ref: ActorRef): Unit
+  def setRecipientActorRefId(id: Int, ref: ActorRef): Unit
+
+  def setSenderAndRecipientActorRef(sender: OptionVal[ActorRef], recipient: OptionVal[ActorRef])
+
   /**
    * Retrive the compressed ActorRef by the compressionId carried by this header.
    * Returns `None` if ActorRef was not compressed, and then the literal [[recipientActorRefPath]] should be used.
    */
   def recipientActorRef(originUid: Long): OptionVal[ActorRef]
+
   /**
    * Retrive the raw literal actor path, instead of using the compressed value.
    * Returns `None` if ActorRef was compressed (!). To obtain the path in such case call [[recipientActorRefPath]] and extract the path from it directly.
@@ -131,9 +150,11 @@ sealed trait HeaderBuilder {
   def recipientActorRefPath: OptionVal[String]
 
   def setSerializer(serializer: Int): Unit
+
   def serializer: Int
 
   def setManifest(manifest: String): Unit
+
   def manifest(originUid: Long): String
 }
 
@@ -157,30 +178,42 @@ private[remote] final class HeaderBuilderImpl(inboundCompression: InboundCompres
   var _manifestIdx: Int = -1
 
   override def setVersion(v: Int) = _version = v
+
   override def version = _version
 
   override def setUid(uid: Long) = _uid = uid
+
   override def uid: Long = _uid
 
+  @deprecated("Pure evil in Encoder", "artery-dev-m2") //FIXME Should be used only in decoder and compression
   override def setActorRefCompressionTableVersion(v: Int): Unit = _actorRefCompressionTableVersion = v
+
   override def actorRefCompressionTableVersion: Int = _actorRefCompressionTableVersion
 
+  @deprecated("Pure evil in Encoder", "artery-dev-m2") //FIXME should be only reachable from compression
   override def setClassManifestCompressionTableVersion(v: Int): Unit = _classManifestCompressionTableVersion = v
+
   override def classManifestCompressionTableVersion: Int = _classManifestCompressionTableVersion
 
-  override def setSenderActorRef(ref: ActorRef): Unit = {
-    _senderActorRefIdx = outboundCompression.compressActorRef(ref)
-    if (_senderActorRefIdx == -1) _senderActorRef = Serialization.serializedActorPath(ref) // includes local address from `currentTransportInformation`
+  def setSenderActorRefId(id: Int, ref: ActorRef): Unit = {
+    _senderActorRefIdx = id
+    if (_senderActorRefIdx == -1) {
+      _senderActorRef = Serialization.serializedActorPath(ref) // includes local address from `currentTransportInformation`
+    }
   }
+
   override def setNoSender(): Unit = {
     _senderActorRef = null
     _senderActorRefIdx = EnvelopeBuffer.DeadLettersCode
   }
+
   override def isNoSender: Boolean =
     (_senderActorRef eq null) && _senderActorRefIdx == EnvelopeBuffer.DeadLettersCode
+
   override def senderActorRef(originUid: Long): OptionVal[ActorRef] =
     if (_senderActorRef eq null) inboundCompression.decompressActorRef(originUid, actorRefCompressionTableVersion, _senderActorRefIdx)
     else OptionVal.None
+
   def senderActorRefPath: OptionVal[String] =
     OptionVal(_senderActorRef)
 
@@ -188,24 +221,28 @@ private[remote] final class HeaderBuilderImpl(inboundCompression: InboundCompres
     _recipientActorRef = null
     _recipientActorRefIdx = EnvelopeBuffer.DeadLettersCode
   }
+
   def isNoRecipient: Boolean =
     (_recipientActorRef eq null) && _recipientActorRefIdx == EnvelopeBuffer.DeadLettersCode
 
-  def setRecipientActorRef(ref: ActorRef): Unit = {
-    _recipientActorRefIdx = outboundCompression.compressActorRef(ref)
+  def setRecipientActorRefId(id: Int, ref: ActorRef): Unit = {
+    _recipientActorRefIdx = id
     if (_recipientActorRefIdx == -1) {
       _recipientActorRef = ref.path.toSerializationFormat
     }
   }
+
   def recipientActorRef(originUid: Long): OptionVal[ActorRef] =
     if (_recipientActorRef eq null) inboundCompression.decompressActorRef(originUid, actorRefCompressionTableVersion, _recipientActorRefIdx)
     else OptionVal.None
+
   def recipientActorRefPath: OptionVal[String] =
     OptionVal(_recipientActorRef)
 
   override def setSerializer(serializer: Int): Unit = {
     _serializer = serializer
   }
+
   override def serializer: Int =
     _serializer
 
@@ -213,11 +250,36 @@ private[remote] final class HeaderBuilderImpl(inboundCompression: InboundCompres
     _manifestIdx = outboundCompression.compressClassManifest(manifest)
     if (_manifestIdx == -1) _manifest = manifest
   }
+
   override def manifest(originUid: Long): String = {
     if (_manifest ne null) _manifest
     else {
       _manifest = inboundCompression.decompressClassManifest(originUid, classManifestCompressionTableVersion, _manifestIdx).get
       _manifest
+    }
+  }
+
+  override def setSenderAndRecipientActorRef(optionalSender: OptionVal[ActorRef], optionalRecipient: OptionVal[ActorRef]): Unit = {
+    optionalSender match {
+      case OptionVal.Some(sender) ⇒
+        optionalRecipient match {
+          case OptionVal.Some(recipient) ⇒
+            outboundCompression.compressBoth(this, sender, recipient)
+          case OptionVal.None ⇒
+            outboundCompression.compressSender(this, sender)
+            setNoRecipient()
+        }
+
+      case OptionVal.None ⇒
+        optionalRecipient match {
+          case OptionVal.Some(recipient) ⇒
+            outboundCompression.compressRecipient(this, recipient)
+            setNoSender()
+          case OptionVal.None ⇒
+            setNoSender()
+            setNoRecipient()
+        }
+
     }
   }
 
@@ -241,7 +303,9 @@ private[remote] final class HeaderBuilderImpl(inboundCompression: InboundCompres
  * INTERNAL API
  */
 private[remote] final class EnvelopeBuffer(val byteBuffer: ByteBuffer) {
+
   import EnvelopeBuffer._
+
   val aeronBuffer = new UnsafeBuffer(byteBuffer)
 
   private var literalChars = Array.ofDim[Char](64)

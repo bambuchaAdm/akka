@@ -56,25 +56,21 @@ private[remote] class Encoder(
         // race: however here we store the compression table version separately from actually using it (storing the refs / manifests etc).
         // so there is a slight race IF the table is swapped right between us setting the version n here [then the table being swapped to n+1] and then we use the n+1 version to compressions the compressions (which the receiving end will fail to read, since the encoding could be completely different, and it picks the table based on the version Int).
         // A solution would be to getTable => use it to set and compress things
-        headerBuilder setActorRefCompressionTableVersion compression.actorRefCompressionTableVersion
+
+        // Not needed
+        //headerBuilder setActorRefCompressionTableVersion compression.actorRefCompressionTableVersion
         headerBuilder setClassManifestCompressionTableVersion compression.classManifestCompressionTableVersion
 
         // internally compression is applied by the builder:
-        outboundEnvelope.recipient match {
-          case OptionVal.Some(r) ⇒ headerBuilder setRecipientActorRef r
-          case OptionVal.None    ⇒ headerBuilder.setNoRecipient()
-        }
 
         try {
+
           // avoiding currentTransportInformation.withValue due to thunk allocation
           val oldValue = Serialization.currentTransportInformation.value
           try {
             Serialization.currentTransportInformation.value = serializationInfo
 
-            outboundEnvelope.sender match {
-              case OptionVal.None    ⇒ headerBuilder.setNoSender()
-              case OptionVal.Some(s) ⇒ headerBuilder setSenderActorRef s
-            }
+            headerBuilder.setSenderAndRecipientActorRef(outboundEnvelope.sender, outboundEnvelope.recipient)
 
             MessageSerializer.serializeForArtery(serialization, outboundEnvelope.message, headerBuilder, envelope)
           } finally Serialization.currentTransportInformation.value = oldValue
@@ -176,7 +172,8 @@ private[remote] class Decoder(
             OptionVal(ref.asInstanceOf[InternalActorRef])
           case OptionVal.None if headerBuilder.recipientActorRefPath.isDefined ⇒
             resolveRecipient(headerBuilder.recipientActorRefPath.get)
-          case _ ⇒
+          case v ⇒
+            log.error("Should not happend in recipient !!! value = {},", v)
             OptionVal.None
         }
 
@@ -185,7 +182,8 @@ private[remote] class Decoder(
             OptionVal(ref.asInstanceOf[InternalActorRef])
           case OptionVal.None if headerBuilder.senderActorRefPath.isDefined ⇒
             OptionVal(resolveActorRefWithLocalAddress(headerBuilder.senderActorRefPath.get))
-          case _ ⇒
+          case v ⇒
+            log.error("Should not happend in sender !!! value = {},", v)
             OptionVal.None
         }
 
